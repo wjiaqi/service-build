@@ -1,0 +1,200 @@
+﻿linux  php+nginx搭建服务器
+
+
+mysql的安装和配置
+    原文：https://www.cnblogs.com/wishwzp/p/7113403.html
+    (user:'root',password:'WangJiaQi1994@');
+    1:获取mysql YUM源
+        进入mysql官网获取RPM包下载地址,复制下载链接地址
+        https://dev.mysql.com/downloads/repo/yum/
+
+    2:下载和安装mysql源
+        wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+        安装mysql源
+        yum -y localinstall mysql57-community-release-el7-11.noarch.rpm   
+
+    3:在线安装mysql
+        yum -y install mysql-community-server
+
+    4:启动mysql服务
+        systemctl start mysqld
+
+    5:设置开机启动
+        systemctl enable mysqld
+        systemctl daemon-reload     t-D?<rm2Yk5l
+
+    6:修改root本地登录密码
+        mysql安装完成之后，在/var/log/mysqld.log文件中给root生成了一个临时的默认密码。
+        vi /var/log/mysqld.log  
+
+        mysql -u root -p
+        输入临时密码
+        mysql> ALTER USER 'root'@'localhost' IDENTIFIED BY 'WangJiaQi1994@';
+
+    7:设置允许远程登录
+        防火墙默认未开启
+            开启防火墙:systemctl start firewalld
+            查看防火墙状态:systemctl status firewalld
+            停止防火墙:systemctl stop firewalld
+        Mysql默认不允许远程登录，我们需要设置下，并且防火墙开放3306端口；
+
+        mysql> GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'WangJiaQi1994@' WITH GRANT OPTION;
+
+        Query OK, 0 rows affected, 1 warning (0.01 sec)
+
+        mysql> exit;
+
+        Bye
+
+        退出下；
+
+        [root@localhost ~]# firewall-cmd --zone=public --add-port=3306/tcp --permanent
+
+        success
+
+        [root@localhost ~]# firewall-cmd --reload
+
+        success
+
+        [root@localhost ~]# 
+
+        开放3306端口
+
+    8:配置默认编码为utf8
+        修改/etc/my.cnf配置文件，在[mysqld]下添加编码配置，如下所示：
+
+        [mysqld]
+
+        character_set_server=utf8
+
+        init_connect='SET NAMES utf8'
+ 
+        [root@localhost ~]# vi /etc/my.cnf
+        
+    9:每次登陆需执行
+        error:You must reset your password using ALTER USER statement before executing this statement.
+        SET PASSWORD = PASSWORD('WangJiaQi1994@');
+    ps:mysql重置密碼
+        修改MySQL的登录设置： 
+        # vi /etc/my.cnf 
+        在[mysqld]的段中加上一句：skip-grant-tables 
+        重新启动mysqld 
+        登陸mysql:
+        #  mysql
+        #  use mysql
+        #  update mysql.user set authentication_string=password("WangJiaQi1994@") where user="root";
+        #  flush privileges ; 
+        #  quit
+
+        重新启动mysqld;
+
+
+nginx安装和配置
+    原文:http://www.linuxidc.com/Linux/2016-09/134907.htm
+
+    注意事项:相关依赖包的安装不能有多个库共存冲突，可能到时make编译安装失败，出现冲突时
+        在执行命令后面加上：--setopt=protected_multilib=false 
+    编译安装
+        make
+        make install
+    查找安装路径：
+        whereis nginx
+    启动、停止nginx
+        cd /usr/local/nginx/sbin/
+        ./nginx 
+        ./nginx -s stop
+        ./nginx -s quit
+        ./nginx -s reload
+        ./nginx -s quit:此方式停止步骤是待nginx进程处理任务完毕进行停止。
+        ./nginx -s stop:此方式相当于先查出nginx进程id再使用kill命令强制杀掉进程。
+
+    查询nginx进程：
+        ps aux|grep nginx
+
+    重启 nginx
+
+        1.先停止再启动（推荐）：
+            对 nginx 进行重启相当于先停止再启动，即先执行停止命令再执行启动命令。如下：
+            ./nginx -s quit
+            ./nginx
+        2.重新加载配置文件：
+            当 ngin x的配置文件 nginx.conf 修改后，要想让配置生效需要重启 nginx，使用-s reload不用先停止 ngin x再启动 nginx 即可将配置信息在 nginx 中生效，如下：
+            ./nginx -s reload
+    开机自启动
+        即在rc.local增加启动代码就可以了。
+        vi /etc/rc.local
+        增加一行 /usr/local/nginx/sbin/nginx
+        设置执行权限：
+        chmod 755 /etc/rc.local
+
+php环境安装配置
+    安装相关依赖、
+    安装参考路径：http://www.jb51.net/article/109228.htm
+    启动php-fpm: 原路径-- http://blog.csdn.net/ivan820819/article/details/54970330
+       	启动:/usr/local/php/sbin/php-fpm
+	查看进程:ps -ef|grep php-fpm
+	查看php-fpm占用的端口9000:netstat -tnl | grep 9000  
+		
+    复制php源码压缩包:wget url;
+    解压安装
+      ./configure --enable-fpm --with-mysql
+      make  &&   make install
+    安装问题:
+        1:makefile 文件不存在
+        yum -y install zlib zlib-devel openssl openssl-devel pcre pcre-devel 
+        yum -y install gcc gcc-c++ autoconf automake
+        yum -y install libtidy-devel libtidy
+
+        2：Make编译安装php出现的错误
+        collect2: ld returned 1 exit status make: *** [sapi/cli/php] Error 1
+        解决方案:
+        ln -s /usr/local/lib/libiconv.so.2 /usr/lib64/
+        make ZEND_EXTRA_LIBS='-liconv'
+        make install
+
+        3:解压前做的操作
+        xml2-config not found
+            原文:http://blog.csdn.net/anljf/article/details/6981247 
+            检查是否安装了libxm包
+            [root@XKWB3403 php-5.3.8]# rpm -qa |grep  libxml2
+            libxml2-2.6.26-2.1.12
+            libxml2-python-2.6.26-2.1.12
+ 
+            重新安装libxml2和libxml2-devel包
+            yum install libxml2
+            yum install libxml2-devel -y
+
+            安装完之后查找xml2-config文件是否存在
+
+            [root@XKWB3403 php-5.3.8]# find / -name "xml2-config"
+            /usr/bin/xml2-config
+
+            如果存在的话重新安装php
+            [root@XKWB3403 php-5.3.8]# ./configure
+
+
+
+
+
+./configure --prefix=/usr/local/php --with-config-file-path=/etc --enable-fpm --with-fpm-user=nginx --with-fpm-group=nginx --enable-inline-optimization --disable-debug --disable-rpath --enable-shared --enable-soap --with-libxml-dir --with-xmlrpc --with-openssl  --with-mhash --with-pcre-regex --with-sqlite3 --with-zlib --enable-bcmath --with-iconv --with-bz2 --enable-calendar --with-curl --with-cdb --enable-dom --enable-exif --enable-fileinfo --enable-filter --with-pcre-dir --enable-ftp --with-gd --with-openssl-dir --with-jpeg-dir --with-png-dir --with-zlib-dir --with-freetype-dir --enable-gd-native-ttf --enable-gd-jis-conv --with-gettext --with-gmp --with-mhash --enable-json --enable-mbstring --enable-mbregex --enable-mbregex-backtrack --with-libmbfl --with-onig --enable-pdo --with-mysqli=mysqlnd --with-pdo-mysql=mysqlnd --with-zlib-dir --with-pdo-sqlite --with-readline --enable-session --enable-shmop --enable-simplexml --enable-sockets --enable-sysvmsg --enable-sysvsem --enable-sysvshm --enable-wddx --with-libxml-dir --with-xsl --enable-zip --enable-mysqlnd-compression-support --with-pear --enable-opcache
+
+
+
+
+docker 使用配置:
+    systemctl 报错处理办法
+    http://blog.sina.com.cn/s/blog_53e6076b0102wwp3.html
+	
+   启动docker时，使用privileged 参数
+   docker run --privileged -i -t  -p 10080:80 centos /usr/sbin/init
+   启动时间非常长，可以另开一个窗口docker ps -a 获得containerid，然后docker stop containerid / docker start containerid 。
+   连接docker使用
+   docker exec -it 941243cb32de  /bin/bash
+   挂载本地目录
+ docker run --privileged -v /data/swoole_xiaoqi/:/data/swoole_xiaoqi -i -t -p 10082:80 xiaoqi_docker/lnmp_swoole /usr/sbin/init
+
+
+docker run --privileged -v /data/cy_server/:/data/cy_server -i -t -p 10080:8089 docker.io/centos:latest /usr/sbin/init
+
+
+
